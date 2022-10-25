@@ -1,0 +1,192 @@
+- name: Making directory for donwload files
+  file:
+    path: ~/prometheus
+    state: directory
+
+- name: Download/Extract Prometheus Files
+  unarchive:
+    src: "{{source}}"
+    dest: ~/prometheus
+    remote_src: yes
+    mode: 0777
+    owner: root
+    group: root
+
+- name: Prometheus executables files added
+  shell: |
+    cd ~/prometheus/prometheus*
+    cp -r . /usr/local/bin/prometheus
+
+- name: Prometheus service file copy
+  copy:
+    src: prometheus.service
+    dest: /etc/systemd/system
+    mode: 777
+    owner: root
+    group: root
+
+
+
+
+
+
+- name: Nagios dependecies and libraries Installation
+  tags: dependecies, libraries
+  apt:
+    name:
+      - autoconf
+      - gcc
+      - libc6
+      - make
+      - wget
+      - unzip
+      - apache2
+      - php
+      - libapache2-mod-php7.4
+      - libgd-dev
+      - openssl
+      - libssl-dev
+      - autoconf
+      - gcc
+      - libc6
+      - libmcrypt-dev
+      - make
+      - libssl-dev
+      - wget
+      - bc
+      - gawk
+      - dc
+      - build-essential
+      - snmp
+      - libnet-snmp-perl
+      - gettext
+      - python3-pip
+      - python3
+    state: latest
+
+- name: Passslib python package Installation
+  pip:
+    name: passlib
+
+- name: Making  Directory for downloaded files
+  file:
+    path: ~/nagios
+    state: directory
+
+- name: Nagios download and extract
+  unarchive:
+    src: https://github.com/NagiosEnterprises/nagioscore/archive/nagios-4.4.6.tar.gz
+    dest: ~/nagios
+    remote_src: yes
+    mode: 0755
+    owner: root
+    group: root
+
+- name: Create, Compile and install users and group
+  shell: |
+    cd ~/nagios/nagioscore-*
+    sudo ./configure --with-httpd-conf=/etc/apache2/sites-enabled
+    sudo make all
+    sudo make install-groups-users
+    sudo usermod -a -G nagios www-data
+    sudo make install
+    sudo make install-daemoninit
+    sudo make install-commandmode
+    sudo make install-config
+    sudo make install-webconf
+    sudo a2enmod rewrite
+    sudo a2enmod cgi
+
+- name: Nagios Plugins Download and Extract
+  unarchive:
+    src: https://github.com/nagios-plugins/nagios-plugins/archive/release-2.3.3.tar.gz
+    dest: ~/nagios
+    remote_src: yes
+    mode: 0755
+    owner: root
+    group: root
+
+- name: Compilation and Installation
+  shell: |
+    cd ~/nagios/nagios-plugins*
+    ./tools/setup
+    ./configure
+    make
+    make install
+
+- name: Adding user to a password file and verifying permission are set
+  community.general.htpasswd:
+    path: /usr/local/nagios/etc/htpasswd.users
+    name: cordero
+    password: lastking23
+
+
+
+
+
+- name: Elasticsearch apt key added
+  apt_key:
+   url: "https://packages.elastic.co/GPG-KEY-elasticsearch"
+   state: present
+
+- name: Apt repository Installing
+  apt:
+    name: apt-transport-https
+    state: present
+
+- name: Elasticsearch Repository
+  apt_repository:
+   repo: deb https://artifacts.elastic.co/packages/7.x/apt stable main
+   state: present
+
+- name: Elasticsearch Installing
+  apt:
+   name: elasticsearch
+   update_cache: yes
+
+- name: Update the configuration file to allow outside access
+  lineinfile:
+   destfile: /etc/elasticsearch/elasticsearch.yml
+   regexp: 'network.host:'
+   line: 'network.host: 0.0.0.0'
+
+- name: Port in configuration file update
+  lineinfile:
+   destfile: /etc/elasticsearch/elasticsearch.yml
+   regexp: 'http.port:'
+   line: 'http.port: 9200'
+
+- name: Update the config file to allow outside access
+  lineinfile:
+   destfile: /etc/elasticsearch/elasticsearch.yml
+   regexp: 'cluster.initial_master_nodes:'
+   line: 'cluster.initial_master_nodes: ["{{ ansible_default_ipv4.address }}"]'
+
+
+
+
+
+
+- name: Verifying the nagios and httpd is starting and enabled
+  service:
+    name: nagios
+    state: restarted
+    enabled: true
+
+- name: Verifying the Prometheus
+  service:
+    name: prometheus
+    state: restarted
+    enabled: true
+
+- name: Verifying the Elasticsearch
+  service:
+   name: elasticsearch
+   state: restarted
+   enabled: true
+
+- name: Verifying the httpd is starting and enabled
+  service:
+    name: apache2
+    state: restarted
+    enabled: true
